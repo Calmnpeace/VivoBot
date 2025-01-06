@@ -1,6 +1,6 @@
 import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, filters
 import requests
 
 # API Base URL
@@ -97,7 +97,7 @@ def main():
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CallbackQueryHandler(handle_role_selection, pattern="^role:"))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_answer))
+    dispatcher.add_handler(MessageHandler(filters.text & ~filters.command, handle_answer))
     updater.start_polling()
     updater.idle()
 
