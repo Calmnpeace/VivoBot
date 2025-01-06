@@ -1,17 +1,25 @@
 import os
 import requests
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, filters
+from telegram import Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, CallbackContext
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+import logging
 
-# API Base URL
-API_BASE_URL = "https://c892-218-111-149-235.ngrok-free.app"  # Replace with your Flask API's URL (e.g., the URL of your local server)
+# Set up logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Telegram Bot Token from Environment Variable
+# Get Telegram Bot Token from Environment Variable
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set.")
 
-# Role-Specific Questions
+API_BASE_URL = "https://c892-218-111-149-235.ngrok-free.app"  # Replace with your Flask API URL for user registration
+
+USER_RESPONSES = {}
+
+# Role-Specific Questions (same as before)
 ROLE_QUESTIONS = {
     "admin": [
         {"text": "What is the database administrator's name?", "answer": "admin_name"},
@@ -23,12 +31,10 @@ ROLE_QUESTIONS = {
     ],
 }
 
-USER_RESPONSES = {}
-
 # Start Command
 async def start(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
-    await context.bot.send_message(chat_id, "Welcome! Please choose your desired role.")
+    await update.message.reply_text("Welcome! Please choose your desired role.")
     show_role_selection(update, context)
 
 # Show Role Selection
@@ -47,19 +53,25 @@ async def handle_role_selection(update: Update, context: CallbackContext):
     chat_id = query.message.chat.id
     selected_role = query.data.split(":")[1]
 
+    # Store selected role
     if chat_id not in USER_RESPONSES:
         USER_RESPONSES[chat_id] = {"role": selected_role}
 
     if selected_role == "user":
-        register_user(chat_id, selected_role, update, context)
+        # Directly register the user with the 'user' role
+        await register_user(chat_id, selected_role, update, context)
     else:
-        ask_role_question(update, context, chat_id, selected_role, question_index=0)
+        # Ask the first question for the selected role
+        await ask_role_question(update, context, chat_id, selected_role, question_index=0)
 
 # Ask Role-Specific Question
-def ask_role_question(update: Update, context: CallbackContext, chat_id, role, question_index):
+async def ask_role_question(update: Update, context: CallbackContext, chat_id, role, question_index):
     question = ROLE_QUESTIONS[role][question_index]
+
+    # Store current question index
     USER_RESPONSES[chat_id]["current_question"] = question_index
-    context.bot.send_message(chat_id, question["text"])
+
+    await context.bot.send_message(chat_id, question["text"])
 
 # Handle User Answers
 async def handle_answer(update: Update, context: CallbackContext):
@@ -75,35 +87,51 @@ async def handle_answer(update: Update, context: CallbackContext):
     correct_answer = ROLE_QUESTIONS[role][question_index]["answer"]
 
     if user_response.strip().lower() == correct_answer.strip().lower():
+        # Correct answer
         if question_index + 1 < len(ROLE_QUESTIONS[role]):
-            ask_role_question(update, context, chat_id, role, question_index + 1)
+            # Ask the next question
+            await ask_role_question(update, context, chat_id, role, question_index + 1)
         else:
-            register_user(chat_id, role, update, context)
+            # All questions answered correctly; register the user
+            await register_user(chat_id, role, update, context)
     else:
+        # Incorrect answer
         await context.bot.send_message(chat_id, "Incorrect answer. Please try again or choose a different role using /start.")
 
-# Register User in the API
-def register_user(chat_id, role, update, context):
+# Register User
+async def register_user(chat_id, role, update, context):
     username = update.effective_chat.username or "unknown_user"
 
+    # Send user data to the Flask API
     response = requests.post(f"{API_BASE_URL}/users", json={"username": username, "chat_id": chat_id, "role": role})
 
     if response.status_code == 200:
-        context.bot.send_message(chat_id, f"You have been successfully registered as a {role}!")
+        await context.bot.send_message(chat_id, f"You have been successfully registered as a {role}!")
     else:
-        context.bot.send_message(chat_id, f"An error occurred while registering your role: {response.json().get('error')}")
+        await context.bot.send_message(chat_id, f"An error occurred while registering your role: {response.json().get('error')}")
 
+    # Clear temporary data
     USER_RESPONSES.pop(chat_id, None)
+
+# Webhook setup
+async def set_webhook(application: Application):
+    webhook_url = f"{API_BASE_URL}/your-webhook-path"
+    await application.bot.set_webhook(webhook_url)
 
 # Main Function
 def main():
     application = Application.builder().token(TOKEN).build()
 
+    # Set webhook
+    application.add_job(set_webhook(application), run_once=True)
+
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_role_selection, pattern="^role:"))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_answer))
 
-    application.run_polling()
+    # Run the webhook listener (without polling)
+    application.run_webhook(listen="0.0.0.0", port=5000, url_path="/your-webhook-path")
 
 if __name__ == "__main__":
     main()
