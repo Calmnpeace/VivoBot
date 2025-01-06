@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 API_BASE_URL = "https://c892-218-111-149-235.ngrok-free.app"  # Replace with your Flask API URL
 
 # Get Telegram Bot Token from Environment Variable
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN1")
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set.")
 
