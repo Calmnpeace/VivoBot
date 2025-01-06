@@ -123,7 +123,7 @@ def main():
     application = Application.builder().token(TOKEN).build()
 
     # Set webhook
-    application.add_job(set_webhook(application), run_once=True)
+    application.bot.set_webhook(f"{API_BASE_URL}/your-webhook-path")
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
