@@ -1,10 +1,12 @@
 import os
+
+import Filters
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler
 import requests
 
 # API Base URL
-API_BASE_URL = "http://127.0.0.1:5000"  # Replace with your Flask API's public URL
+API_BASE_URL = " https://c892-218-111-149-235.ngrok-free.app"  # Replace with your Flask API's public URL
 
 # Get Telegram Bot Token from Environment Variable
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
