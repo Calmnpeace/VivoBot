@@ -1,13 +1,13 @@
 import os
 import requests
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, CallbackContext, filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, filters
 
-# API Base URL for Flask API
-API_BASE_URL = "https://c892-218-111-149-235.ngrok-free.app"  # Replace with your Flask API URL
+# API Base URL
+API_BASE_URL = "http://localhost:5000"  # Replace with your Flask API's URL (e.g., the URL of your local server)
 
-# Get Telegram Bot Token from Environment Variable
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN1")
+# Telegram Bot Token from Environment Variable
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set.")
 
@@ -23,8 +23,7 @@ ROLE_QUESTIONS = {
     ],
 }
 
-USER_RESPONSES = {}  # Temporarily stores user responses
-
+USER_RESPONSES = {}
 
 # Start Command
 async def start(update: Update, context: CallbackContext):
@@ -32,75 +31,71 @@ async def start(update: Update, context: CallbackContext):
     await context.bot.send_message(chat_id, "Welcome! Please choose your desired role.")
     show_role_selection(update, context)
 
-
 # Show Role Selection
-async def show_role_selection(update: Update, context: CallbackContext):
+def show_role_selection(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
     roles = ["admin", "moderator", "user"]
     keyboard = [[InlineKeyboardButton(role.capitalize(), callback_data=f"role:{role}")] for role in roles]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(update.effective_chat.id, "Select your role:", reply_markup=reply_markup)
-
+    context.bot.send_message(chat_id, "Select your role:", reply_markup=reply_markup)
 
 # Handle Role Selection
 async def handle_role_selection(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
+
     chat_id = query.message.chat.id
     selected_role = query.data.split(":")[1]
-    USER_RESPONSES[chat_id] = {"role": selected_role}
+
+    if chat_id not in USER_RESPONSES:
+        USER_RESPONSES[chat_id] = {"role": selected_role}
 
     if selected_role == "user":
         register_user(chat_id, selected_role, update, context)
     else:
         ask_role_question(update, context, chat_id, selected_role, question_index=0)
 
-
-# Ask Role-Specific Questions
-async def ask_role_question(update: Update, context: CallbackContext, chat_id, role, question_index):
+# Ask Role-Specific Question
+def ask_role_question(update: Update, context: CallbackContext, chat_id, role, question_index):
     question = ROLE_QUESTIONS[role][question_index]
     USER_RESPONSES[chat_id]["current_question"] = question_index
-    await context.bot.send_message(chat_id, question["text"])
-
+    context.bot.send_message(chat_id, question["text"])
 
 # Handle User Answers
 async def handle_answer(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
     user_response = update.message.text
-    role_data = USER_RESPONSES.get(chat_id)
 
-    if not role_data:
+    if chat_id not in USER_RESPONSES or "role" not in USER_RESPONSES[chat_id]:
         await context.bot.send_message(chat_id, "Please restart by choosing a role using /start.")
         return
 
-    role = role_data["role"]
-    question_index = role_data.get("current_question", 0)
+    role = USER_RESPONSES[chat_id]["role"]
+    question_index = USER_RESPONSES[chat_id].get("current_question", 0)
     correct_answer = ROLE_QUESTIONS[role][question_index]["answer"]
 
     if user_response.strip().lower() == correct_answer.strip().lower():
         if question_index + 1 < len(ROLE_QUESTIONS[role]):
-            await ask_role_question(update, context, chat_id, role, question_index + 1)
+            ask_role_question(update, context, chat_id, role, question_index + 1)
         else:
-            await register_user(chat_id, role, update, context)
+            register_user(chat_id, role, update, context)
     else:
-        await context.bot.send_message(chat_id, "Incorrect answer. Please try again.")
+        await context.bot.send_message(chat_id, "Incorrect answer. Please try again or choose a different role using /start.")
 
-
-# Register User in the Database
-async def register_user(chat_id, role, update, context):
+# Register User in the API
+def register_user(chat_id, role, update, context):
     username = update.effective_chat.username or "unknown_user"
 
-    # Sending the user data to the Flask API
     response = requests.post(f"{API_BASE_URL}/users", json={"username": username, "chat_id": chat_id, "role": role})
 
     if response.status_code == 200:
-        await context.bot.send_message(chat_id, f"You have been successfully registered as a {role}!")
+        context.bot.send_message(chat_id, f"You have been successfully registered as a {role}!")
     else:
-        await context.bot.send_message(chat_id, f"Error: {response.json().get('error', 'Unknown error')}")
+        context.bot.send_message(chat_id, f"An error occurred while registering your role: {response.json().get('error')}")
 
     USER_RESPONSES.pop(chat_id, None)
 
-
-# Main Function to Start the Bot
+# Main Function
 def main():
     application = Application.builder().token(TOKEN).build()
 
@@ -109,7 +104,6 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_answer))
 
     application.run_polling()
-
 
 if __name__ == "__main__":
     main()
