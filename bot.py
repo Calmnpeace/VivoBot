@@ -93,7 +93,6 @@ def register_user(chat_id, role, update, context):
 
 # Main Function
 def main():
-    updater = Updater(TOKEN)
     application = Application.builder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_role_selection, pattern="^role:"))
