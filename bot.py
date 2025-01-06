@@ -1,6 +1,6 @@
 import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, filters
+from telegram.ext import Application, Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, filters
 import requests
 
 # API Base URL
@@ -94,12 +94,12 @@ def register_user(chat_id, role, update, context):
 # Main Function
 def main():
     updater = Updater(TOKEN)
-    dispatcher = updater.dispatcher
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CallbackQueryHandler(handle_role_selection, pattern="^role:"))
-    dispatcher.add_handler(MessageHandler(filters.text & ~filters.command, handle_answer))
-    updater.start_polling()
-    updater.idle()
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_role_selection, pattern="^role:"))
+    application.add_handler(MessageHandler(filters.text & ~filters.command, handle_answer))
+    application.start_polling()
+    application.idle()
 
 if __name__ == "__main__":
     main()
